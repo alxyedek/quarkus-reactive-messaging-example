@@ -1,7 +1,7 @@
 package org.acme;
 
 import io.smallrye.mutiny.Multi;
-import  org.eclipse.microprofile.reactive.messaging.Emitter;
+import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -10,6 +10,7 @@ import jakarta.ws.rs.core.MediaType;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.eclipse.microprofile.reactive.messaging.Outgoing;
 import org.eclipse.microprofile.reactive.messaging.Channel;
+import org.eclipse.microprofile.reactive.messaging.Emitter;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -21,8 +22,7 @@ import java.time.Instant;
 @Path("/hello")
 public class GreetingResource {
 
-    // Inject a MutinyEmitter to control the 'ticks' stream.
-    // The @Channel annotation is used to link the Emitter to a named channel.
+    // Inject an Emitter to control the 'ticks' stream.
     @Inject
     @Channel("ticks")
     Emitter<Long> ticksEmitter;
@@ -51,38 +51,29 @@ public class GreetingResource {
 
     /**
      * Processes the incoming ticks from the 'ticks' channel.
-     * Maps each tick to the current instant in string format.
+     * This method now uses a non-blocking delay.
      */
     @Incoming("ticks")
     @Outgoing("times")
     public Multi<String> processor(Multi<Long> ticks) {
         return ticks
-            .onItem()
-            .invoke(tick -> System.out.println("Before processing\t "+tick))
-            .invoke(tick -> {
-                try {
-                    Thread.sleep(3L);
-                } catch (InterruptedException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
+            // Use call to perform a non-blocking operation that logs and then delays.
+            .onItem().call(tick -> {
+                System.out.println("Before processing\t on thread: " + Thread.currentThread().getName() + " with payload: " + tick);
+                // Return a Uni that delays the stream for 3 milliseconds.
+                return Uni.createFrom().item(tick).onItem().delayIt().by(Duration.ofMillis(3));
             })
-            .invoke(tick -> System.out.println("Message processed\t on thread: " + Thread.currentThread().getName() + " with payload: " + tick))
-            .map(tick -> ""+tick+"_"+Instant.now().toEpochMilli());
+            .onItem().invoke(tick -> System.out.println("Message processed\t on thread: " + Thread.currentThread().getName() + " with payload: " + tick))
+            .map(tick -> "" + tick + "_" + Instant.now().toEpochMilli());
     }
 
     /**
      * Consumes the processed timestamps from the 'times' channel and prints them.
+     * The blocking sleep has been removed here, as the delay is now handled upstream.
      */
     @Incoming("times")
     public void consumer(String payload) {
-        System.out.println("Before consuming\t "+payload);
-        try {
-            Thread.sleep(4L);
-        } catch (InterruptedException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
+        // System.out.println("Before consuming\t " + payload);
         System.out.println("Message consumed\t on thread: " + Thread.currentThread().getName() + " - " + payload);
     }
 }
