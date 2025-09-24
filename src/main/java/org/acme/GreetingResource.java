@@ -82,7 +82,8 @@ public class GreetingResource {
         return ticks
             // Here we configure the overflow behavior. This stream will buffer up to 3 items.
             // When the buffer is full, it will start to apply backpressure to the producer.
-            // .onOverflow().buffer(3)
+            // .onOverflow().buffer(2)
+            .onOverflow().drop()
             // Use call to perform a non-blocking operation that logs and then delays.
             .onItem().call(tick -> {
                 System.out.println("Processed   before:\t " + withThreadTimestamp(tick));
