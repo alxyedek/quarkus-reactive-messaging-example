@@ -53,6 +53,19 @@ public class GreetingResource {
     public String hello() {
         System.out.println("Hello endpoint called on thread: " + Thread.currentThread().getName());
         
+        Multi.createFrom().items("a", "b", "c")
+            .onItem()
+            .transform(String::toUpperCase)
+            .onItem()
+            .invoke(s -> System.out.println("Intermediate stage " + s))
+            .onItem()
+            .transform(s -> s + " item")
+            .filter(s -> !s.startsWith("B"))
+            .onCompletion()
+            .invoke(() -> System.out.println("Stream completed"))
+            .subscribe()
+            .with(s -> System.out.println("Subscriber received " + s));
+            
         // Use a Mutiny Multi to generate the ticks, then send them to the emitter.
         // This keeps the logic for producing the ticks separate from the emitter itself.
         Multi.createFrom()
